@@ -36,7 +36,7 @@ def test_dataset_generation_is_deterministic():
 
 
 def test_evaluate_gate_rejects_below_threshold(tmp_path):
-    from evaluate import evaluate_metrics
+    from gate import evaluate_metrics
 
     metrics_file = tmp_path / "metrics.json"
     metrics_file.write_text(json.dumps({"eval_f1": 0.60, "eval_accuracy": 0.80}))
@@ -45,7 +45,7 @@ def test_evaluate_gate_rejects_below_threshold(tmp_path):
 
 
 def test_evaluate_gate_approves_above_threshold(tmp_path):
-    from evaluate import evaluate_metrics
+    from gate import evaluate_metrics
 
     metrics_file = tmp_path / "metrics.json"
     metrics_file.write_text(json.dumps({"eval_f1": 0.88, "eval_accuracy": 0.91}))
@@ -54,7 +54,7 @@ def test_evaluate_gate_approves_above_threshold(tmp_path):
 
 
 def test_evaluate_gate_boundary_is_inclusive(tmp_path):
-    from evaluate import evaluate_metrics
+    from gate import evaluate_metrics
 
     metrics_file = tmp_path / "metrics.json"
     metrics_file.write_text(json.dumps({"eval_f1": 0.75, "eval_accuracy": 0.80}))

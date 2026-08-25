@@ -79,7 +79,7 @@ jobs:
           path: adapter-output/
       - run: pip install transformers peft huggingface_hub sentencepiece
       - name: Evaluate (gate)
-        run: python training/evaluate.py --metrics-file ./adapter-output/metrics.json --threshold 0.75
+        run: python training/gate.py --metrics-file ./adapter-output/metrics.json --threshold 0.75
       - name: Register (only runs if evaluate.py exited 0)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}

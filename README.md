@@ -35,7 +35,7 @@ training/finetune_lora.py      LoRA fine-tune (tiny model, CPU-feasible
 
         │
         ▼
-training/evaluate.py           GATE: exits non-zero if F1 < threshold.
+training/gate.py           GATE: exits non-zero if F1 < threshold.
   (F1 threshold: 0.75)          A worse model genuinely cannot proceed.
 
         │  (only if approved)
@@ -57,7 +57,7 @@ export/export_onnx.py          Optimum export (transformers.onnx is
 | `data/build_dataset.py` | Generates a labeled log-classification dataset with realistic class imbalance (35% anomaly rate) and label noise (12%), versions it on the Hub with a real dataset card |
 | `data/dataset_impact_experiment.py` | Empirically compares two dataset versions — see [`docs/dataset-impact-findings.md`](docs/dataset-impact-findings.md) for the actual result |
 | `training/finetune_lora.py` | LoRA fine-tune of `prajjwal1/bert-tiny` via PEFT — deliberately tiny for CPU/CI feasibility |
-| `training/evaluate.py` | **The gate.** Exits 1 if F1 < 0.75, blocking registration |
+| `training/gate.py` | **The gate.** Exits 1 if F1 < 0.75, blocking registration |
 | `training/register_model.py` | Merges the adapter (from full precision, not quantized weights) and pushes a tagged model version |
 | `export/export_onnx.py` | Exports the registered model via `optimum-cli export onnx` |
 | `export/verify_onnx_inference.py` | Runs the same inputs through PyTorch and ONNX, fails if predictions disagree |
@@ -112,7 +112,7 @@ python training/finetune_lora.py --dataset-repo <your-repo> --dataset-version v1
     --output-dir ./adapter-output
 
 # 4. Gate on quality, then register only if it passes
-python training/evaluate.py --metrics-file ./adapter-output/metrics.json --threshold 0.75 \
+python training/gate.py --metrics-file ./adapter-output/metrics.json --threshold 0.75 \
   && python training/register_model.py --adapter-path ./adapter-output/final-adapter \
        --repo-id <your-model-repo> --version v1.0.0
 

@@ -43,7 +43,7 @@ even though this cost a small amount of raw accuracy.
 
 ## Why this matters for the pipeline's gating logic
 
-This is the direct justification for why `training/evaluate.py` gates
+This is the direct justification for why `training/gate.py` gates
 on **F1**, not accuracy. Had this pipeline gated on accuracy instead, it
 would have rejected the *better* model (v2) in favor of the *worse* one
 (v1) — the exact kind of quiet, plausible-looking mistake a metrics

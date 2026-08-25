@@ -1,5 +1,5 @@
 """
-training/evaluate.py
+training/gate.py
 
 The gate: reads metrics.json produced by finetune_lora.py and exits
 non-zero if the model doesn't clear the F1 threshold — mirroring the
@@ -7,8 +7,15 @@ same evaluate-before-register pattern from this author's other MLOps
 project (Multi-Cloud MLOps Showcase's evaluate_and_register.py), just
 targeting the Hugging Face Hub instead of Azure ML.
 
+Note: this file is deliberately NOT named evaluate.py, even though
+that's the more obvious name for what it does — Python adds a script's
+own directory to sys.path when run directly, so a local evaluate.py
+sitting next to finetune_lora.py would shadow the installed `evaluate`
+pip package's `import evaluate` inside that file. Found this the hard
+way; renaming was simpler and more robust than reordering imports.
+
 Usage:
-  python evaluate.py --metrics-file ./adapter-output/metrics.json --threshold 0.75
+  python gate.py --metrics-file ./adapter-output/metrics.json --threshold 0.75
 """
 
 import argparse
