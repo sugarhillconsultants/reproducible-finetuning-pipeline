@@ -1,5 +1,12 @@
 # Reproducible Fine-Tuning & Model Versioning Pipeline
 
+**Status: fully verified end-to-end against live infrastructure** — every
+stage below has actually run successfully on GitHub Actions against a
+real Hugging Face account, not just locally or in theory. Getting here
+took six distinct real bugs, each found from an actual failure log and
+fixed, not anticipated in advance — the full account is in
+[`docs/incidents.md`](docs/incidents.md).
+
 A complete, working pipeline demonstrating what actually makes ML
 model development *reproducible*: versioned datasets, PEFT/LoRA
 fine-tuning, a metrics-gated registration step that can reject a model,
@@ -30,8 +37,8 @@ data/build_dataset.py          Builds + versions a labeled dataset,
 
         │
         ▼
-training/finetune_lora.py      LoRA fine-tune (tiny model, CPU-feasible
-  (PEFT, CPU-only for CI)       in CI — see "Honest limitations" below)
+training/finetune_lora.py      LoRA fine-tune (distilbert-base-uncased,
+  (PEFT, CPU-only for CI)       CPU-feasible in CI — see limitations below)
 
         │
         ▼
@@ -56,14 +63,15 @@ export/export_onnx.py          Optimum export (transformers.onnx is
 |---|---|
 | `data/build_dataset.py` | Generates a labeled log-classification dataset with realistic class imbalance (35% anomaly rate) and label noise (12%), versions it on the Hub with a real dataset card |
 | `data/dataset_impact_experiment.py` | Empirically compares two dataset versions — see [`docs/dataset-impact-findings.md`](docs/dataset-impact-findings.md) for the actual result |
-| `training/finetune_lora.py` | LoRA fine-tune of `prajjwal1/bert-tiny` via PEFT — deliberately tiny for CPU/CI feasibility |
-| `training/gate.py` | **The gate.** Exits 1 if F1 < 0.75, blocking registration |
+| `training/finetune_lora.py` | LoRA fine-tune of `distilbert-base-uncased` via PEFT — small enough for CPU/CI feasibility |
+| `training/gate.py` | **The gate.** Exits 1 if F1 < 0.75, blocking registration (deliberately not named `evaluate.py` — see [`docs/incidents.md`](docs/incidents.md) #4 for why) |
 | `training/register_model.py` | Merges the adapter (from full precision, not quantized weights) and pushes a tagged model version |
 | `export/export_onnx.py` | Exports the registered model via `optimum-cli export onnx` |
 | `export/verify_onnx_inference.py` | Runs the same inputs through PyTorch and ONNX, fails if predictions disagree |
 | `tests/test_pipeline.py` | Tests dataset generation and the evaluation gate's reject/approve logic |
 | `.github/workflows/pipeline.yml` | Orchestrates all of the above, gated at each step |
 | `docs/dataset-impact-findings.md` | A real, run experiment — including an honest account of an earlier version that didn't work |
+| `docs/incidents.md` | Six real bugs found running this against live infrastructure, each with the actual error and actual fix |
 
 ## A real finding, not a simulated one
 
@@ -77,15 +85,40 @@ data increased F1 (+0.056) while accuracy went slightly down
 why the pipeline gates on F1 rather than accuracy for an imbalanced
 problem. Full writeup: [`docs/dataset-impact-findings.md`](docs/dataset-impact-findings.md).
 
+## Verified results
+
+The full pipeline — build dataset → LoRA fine-tune → F1 gate → merge
+and register → ONNX export → parity check — has actually run
+successfully end to end on GitHub Actions. The final verification step
+produced:
+
+```
+[MATCH] pt=0 onnx=0 max_logit_diff=0.000001  'User alice logged in successfully...'
+[MATCH] pt=1 onnx=1 max_logit_diff=0.000000  'Failed password for invalid user root...'
+[MATCH] pt=1 onnx=1 max_logit_diff=0.000000  'Unauthorized access attempt...'
+[MATCH] pt=0 onnx=0 max_logit_diff=0.000000  'DescribeInstances called by role...'
+All 4 predictions match. ONNX export verified.
+```
+
+Every prediction is correct given the actual content of each test
+sentence (two normal, two anomalous), and every PyTorch/ONNX logit
+difference is at floating-point noise level — genuine proof the export
+preserved model behavior, not just confirmation a file got created.
+Both the versioned dataset and the registered, tagged model exist for
+real on the Hugging Face Hub, not just as local artifacts.
+
 ## Honest limitations
 
-- **`prajjwal1/bert-tiny` is deliberately tiny (~4M params)** so the
-  full pipeline — including fine-tuning — can run on a GitHub Actions
-  CPU runner in a few minutes. A production fine-tune of a real-sized
-  model (7B+ params) would use QLoRA on a GPU (ZeroGPU on a Hugging
-  Face Space, or a dedicated GPU runner), not a plain GitHub Actions
-  CPU job — this repo optimizes for "the full pipeline actually runs
-  end-to-end for free in CI," not for state-of-the-art model quality.
+- **`distilbert-base-uncased` (~66M params), not a frontier-scale
+  model.** Large enough to need a real base-model swap partway through
+  development (see [`docs/incidents.md`](docs/incidents.md) #3), small
+  enough that the full pipeline — including fine-tuning — completes on
+  a GitHub Actions CPU runner in a few minutes. A production fine-tune
+  of a real-sized model (7B+ params) would use QLoRA on a GPU (ZeroGPU
+  on a Hugging Face Space, or a dedicated GPU runner), not a plain
+  GitHub Actions CPU job — this repo optimizes for "the full pipeline
+  actually runs end-to-end, for free, and has been proven to work," not
+  for state-of-the-art model quality.
 - **The dataset is synthetic and templated**, not real log data. It's
   built to be *just* realistic enough (class imbalance, label noise,
   ambiguous overlapping cases) to make the evaluation-gating and
@@ -96,6 +129,14 @@ problem. Full writeup: [`docs/dataset-impact-findings.md`](docs/dataset-impact-f
   quantization tooling) would be a reasonable next step but isn't
   covered here, to keep the export-verification story focused on one
   claim (PyTorch and ONNX agree) rather than several at once.
+- **Getting here required six real fixes**, documented in full in
+  [`docs/incidents.md`](docs/incidents.md) — a secret/variable mix-up,
+  two rounds of token-scope gaps, a base-model swap forced by a
+  tokenizer incompatibility, a Python import collision, a pip resolver
+  bug, and an architecture-specific tokenizer/model mismatch. None of
+  these were hypothetical "things that could go wrong" written in
+  advance — each is a real failure this pipeline actually hit and
+  actually recovered from.
 
 ## Running it yourself
 
