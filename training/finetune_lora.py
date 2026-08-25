@@ -53,7 +53,7 @@ def compute_metrics(eval_pred):
 
 
 def main(dataset_repo: str, dataset_version: str, output_dir: str, epochs: int):
-    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
+    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, use_fast=False)
     model = AutoModelForSequenceClassification.from_pretrained(BASE_MODEL, num_labels=2)
 
     lora_config = LoraConfig(
