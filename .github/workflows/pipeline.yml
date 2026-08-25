@@ -97,7 +97,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install optimum[exporters] optimum[onnxruntime] transformers torch sentencepiece
+      - run: pip install "optimum[exporters,onnxruntime]" optimum-onnx transformers torch sentencepiece
       - run: |
           python export/export_onnx.py \
             --repo-id ${{ vars.MODEL_REPO_ID }} \
