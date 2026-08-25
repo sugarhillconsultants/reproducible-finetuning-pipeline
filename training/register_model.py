@@ -19,7 +19,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from peft import PeftModel
 from huggingface_hub import create_tag
 
-BASE_MODEL = "prajjwal1/bert-tiny"
+BASE_MODEL = "distilbert-base-uncased"  # ~66M params, ships a proper fast tokenizer
 
 
 def merge_and_push(adapter_path: str, repo_id: str, version: str):
