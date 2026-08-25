@@ -41,14 +41,18 @@ def verify(repo_id: str, onnx_dir: str):
     mismatches = 0
     for text in TEST_TEXTS:
         inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
+        # DistilBERT's tokenizer is BertTokenizerFast under the hood and
+        # emits token_type_ids, but DistilBertForSequenceClassification's
+        # forward() doesn't accept that argument at all — strip it before
+        # calling either model.
+        inputs.pop("token_type_ids", None)
 
         import torch
         with torch.no_grad():
             pt_logits = pt_model(**inputs).logits.numpy()
         pt_pred = int(np.argmax(pt_logits, axis=-1)[0])
 
-        onnx_inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
-        onnx_logits = onnx_model(**onnx_inputs).logits.detach().numpy()
+        onnx_logits = onnx_model(**inputs).logits.detach().numpy()
         onnx_pred = int(np.argmax(onnx_logits, axis=-1)[0])
 
         agree = pt_pred == onnx_pred
