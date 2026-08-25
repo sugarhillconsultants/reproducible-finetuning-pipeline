@@ -29,7 +29,7 @@ from transformers import (
 from peft import LoraConfig, get_peft_model, TaskType
 import evaluate
 
-BASE_MODEL = "prajjwal1/bert-tiny"  # ~4M params, CPU-feasible for CI demo
+BASE_MODEL = "distilbert-base-uncased"  # ~66M params, ships a proper fast tokenizer
 
 
 def load_and_tokenize(dataset_repo: str, dataset_version: str, tokenizer):
@@ -53,7 +53,7 @@ def compute_metrics(eval_pred):
 
 
 def main(dataset_repo: str, dataset_version: str, output_dir: str, epochs: int):
-    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, use_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
     model = AutoModelForSequenceClassification.from_pretrained(BASE_MODEL, num_labels=2)
 
     lora_config = LoraConfig(
@@ -61,7 +61,7 @@ def main(dataset_repo: str, dataset_version: str, output_dir: str, epochs: int):
         r=8,
         lora_alpha=16,
         lora_dropout=0.1,
-        target_modules=["query", "value"],  # BERT-family attention projections
+        target_modules=["q_lin", "v_lin"],  # DistilBERT's attention projections
     )
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
