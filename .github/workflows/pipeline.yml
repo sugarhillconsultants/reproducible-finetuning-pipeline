@@ -1,0 +1,110 @@
+name: Reproducible Fine-Tuning Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dataset_version:
+        description: 'Dataset version to build/use'
+        default: 'v1'
+      model_version:
+        description: 'Model version to register if approved'
+        default: 'v1.0.0'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install datasets scikit-learn pytest
+      - run: pytest tests/ -v
+
+  build-dataset:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install datasets huggingface_hub
+      - env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python data/build_dataset.py \
+            --version ${{ github.event.inputs.dataset_version || 'v1' }} \
+            --n-samples 200 \
+            --repo-id ${{ vars.DATASET_REPO_ID }} \
+            --push
+
+  finetune:
+    needs: build-dataset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # CPU-only, tiny model — see README for why this is intentional
+      # for CI reproducibility rather than a limitation to work around.
+      - run: pip install transformers peft datasets torch accelerate evaluate scikit-learn
+      - run: |
+          python training/finetune_lora.py \
+            --dataset-repo ${{ vars.DATASET_REPO_ID }} \
+            --dataset-version ${{ github.event.inputs.dataset_version || 'v1' }} \
+            --output-dir ./adapter-output
+      - uses: actions/upload-artifact@v4
+        with:
+          name: adapter-output
+          path: adapter-output/
+
+  evaluate-and-register:
+    needs: finetune
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: adapter-output
+          path: adapter-output/
+      - run: pip install transformers peft huggingface_hub
+      - name: Evaluate (gate)
+        run: python training/evaluate.py --metrics-file ./adapter-output/metrics.json --threshold 0.75
+      - name: Register (only runs if evaluate.py exited 0)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python training/register_model.py \
+            --adapter-path ./adapter-output/final-adapter \
+            --repo-id ${{ vars.MODEL_REPO_ID }} \
+            --version ${{ github.event.inputs.model_version || 'v1.0.0' }}
+
+  export-and-verify-onnx:
+    needs: evaluate-and-register
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install optimum[exporters] optimum[onnxruntime] transformers torch
+      - run: |
+          python export/export_onnx.py \
+            --repo-id ${{ vars.MODEL_REPO_ID }} \
+            --version ${{ github.event.inputs.model_version || 'v1.0.0' }} \
+            --output-dir ./onnx-export
+      - name: Verify ONNX matches PyTorch (not just "a file exists")
+        run: |
+          python export/verify_onnx_inference.py \
+            --repo-id ${{ vars.MODEL_REPO_ID }} \
+            --onnx-dir ./onnx-export
